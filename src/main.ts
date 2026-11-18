@@ -28,6 +28,7 @@ const audio = new Sound();
 audio.sfxVol = save.sfx;
 audio.musVol = save.music;
 setColorSafe(save.colorSafe);
+input.swapHands = save.leftHanded;
 input.onFirst = () => audio.unlock();
 input.onFirstTouch = () => {
   // 휴대폰에서는 주소창을 치우고 가로로 고정한다 (지원하지 않는 기기는 그대로 진행)
@@ -202,7 +203,7 @@ function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
   const vw = innerWidth, vh = innerHeight;
   // 터치 플레이 중에는 게임을 줄여 조작판 자리를 따로 비운다
-  layout = padWanted() ? touchLayout(vw, vh, safeInsets()) : undefined;
+  layout = padWanted() ? touchLayout(vw, vh, safeInsets(), save.leftHanded) : undefined;
   input.layout = layout;
   const box = layout?.game;
   const s = box ? box.w / W : Math.min(vw / W, vh / H);
@@ -256,6 +257,7 @@ function update(dt: number) {
     world.update(STEP, {
       left: h.has('left'), right: h.has('right'), up: h.has('up'), down: h.has('down'),
       jump: h.has('jump'), jumpPressed: jumpQ,
+      assist: !!layout, autoClimb: !!layout && !input.stick,
     });
     jumpQ = false;
     if (world.status === 'lost') {
@@ -281,6 +283,7 @@ function applySettings() {
   audio.applyVolume();
   R.shakeOn = save.shake;
   setColorSafe(save.colorSafe);
+  input.swapHands = save.leftHanded;
   storeSave(save);
 }
 
@@ -354,6 +357,7 @@ function render() {
     return;
   }
 
+  R.ladderHint = layout ? world.ladderHint() : { up: false, down: false };
   R.draw(world, scene === 'play' ? acc / STEP : 1, time);
   R.hud(world, run, save.hi, time, timeAttack ? taTime() : undefined);
   if (layout) {

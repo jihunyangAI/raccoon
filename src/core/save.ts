@@ -17,12 +17,13 @@ export interface Save {
   music: number;
   shake: boolean;
   colorSafe: boolean;
+  leftHanded: boolean; // 터치 조작판 좌우 바꾸기
   keys: KeyMap;
 }
 
 const KEY = 'lumi-orchard-v1';
 const fresh = (): Save => ({
-  best: {}, ta: {}, unlocked: 0, hi: 0, scores: [], lastName: '', sfx: 0.7, music: 0.5, shake: true, colorSafe: false, keys: { ...DEFAULT_KEYS },
+  best: {}, ta: {}, unlocked: 0, hi: 0, scores: [], lastName: '', sfx: 0.7, music: 0.5, shake: true, colorSafe: false, leftHanded: false, keys: { ...DEFAULT_KEYS },
 });
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -47,6 +48,7 @@ export function parseSave(raw: string): Save {
     music: num(d.music, f.music),
     shake: typeof d.shake === 'boolean' ? d.shake : f.shake,
     colorSafe: typeof d.colorSafe === 'boolean' ? d.colorSafe : f.colorSafe,
+    leftHanded: typeof d.leftHanded === 'boolean' ? d.leftHanded : f.leftHanded,
     keys,
   };
 }

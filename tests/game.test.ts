@@ -126,6 +126,51 @@ describe('터치 조작판', () => {
       expect(outside).toBe(true);
     }
   });
+
+  it.each([[844, 390], [1024, 768]])('%i×%i: 왼손잡이 배치는 스틱과 점프 자리를 맞바꾼다', (vw, vh) => {
+    const a = touchLayout(vw, vh), b = touchLayout(vw, vh, undefined, true);
+    expect(b.stick.x).toBeCloseTo(a.jump.x);
+    expect(b.jump.x).toBeCloseTo(a.stick.x);
+    expect(b.game).toEqual(a.game);
+  });
+});
+
+describe('터치 사다리 도움', () => {
+  const setup = () => {
+    const w = mkWorld();
+    const l = w.st.ladders.find((x) => x.bottom === w.st.start.y)!;
+    w.p.x = w.p.px = l.x + (l.x < 960 ? 50 : -50);
+    return { w, l };
+  };
+
+  it('키보드는 그대로 좁게, 터치는 한 칸 가까이 떨어져도 잡는다', () => {
+    const a = setup();
+    a.w.update(STEP, { ...idle, up: true });
+    expect(a.w.p.state).not.toBe('ladder');
+    const b = setup();
+    expect(b.w.ladderHint().up).toBe(true);
+    b.w.update(STEP, { ...idle, up: true, assist: true });
+    expect(b.w.p.state).toBe('ladder');
+  });
+
+  it('스틱에서 손을 떼면 꼭대기까지 저절로 오른다', () => {
+    const { w, l } = setup();
+    w.update(STEP, { ...idle, up: true, assist: true });
+    for (let i = 0; i < 240 && w.p.state === 'ladder'; i++) w.update(STEP, { ...idle, assist: true, autoClimb: true });
+    expect(w.p.y).toBe(l.top);
+    expect(w.p.state).toBe('ground');
+  });
+
+  it('스틱을 가운데에 두면 멈추고, 그 뒤 손을 떼도 움직이지 않는다', () => {
+    const { w } = setup();
+    w.update(STEP, { ...idle, up: true, assist: true });
+    w.update(STEP, { ...idle, up: true, assist: true });
+    w.update(STEP, { ...idle, assist: true });
+    const y = w.p.y;
+    for (let i = 0; i < 30; i++) w.update(STEP, { ...idle, assist: true, autoClimb: true });
+    expect(w.p.y).toBe(y);
+    expect(w.p.state).toBe('ladder');
+  });
 });
 
 describe('음악', () => {

@@ -29,6 +29,8 @@ export class Input {
   playing = false;
   /** 터치 플레이 중의 조작판 배치 */
   layout?: TouchLayout;
+  /** 왼손잡이 배치: 이동은 오른쪽, 점프는 왼쪽 */
+  swapHands = false;
   keyLabels: Record<'left' | 'right' | 'up' | 'down' | 'jump', string> = { left: '', right: '', up: '', down: '', jump: '' };
   stick: { id: number; cx: number; cy: number; x: number; y: number } | null = null;
   jumpTouch: number | null = null;
@@ -106,8 +108,8 @@ export class Input {
         this.mouse.moved = true; this.mouse.click = true;
       } else if (pause && Math.hypot(t.clientX - pause.x, t.clientY - pause.y) < pause.r + 14) {
         this.pressed.add('pause');
-      } else if (t.clientX < innerWidth / 2) {
-        // 왼손은 닿은 자리가 스틱 중심이 된다
+      } else if (t.clientX < innerWidth / 2 !== this.swapHands) {
+        // 이동 쪽 손은 닿은 자리가 스틱 중심이 된다
         const p = this.stickPoint(t);
         if (!this.stick) this.stick = { id: t.identifier, cx: p.x, cy: p.y, x: p.x, y: p.y };
       } else if (this.jumpTouch === null) {
@@ -171,7 +173,8 @@ export class Input {
     if (this.stick) {
       const dx = this.stick.x - this.stick.cx, dy = this.stick.y - this.stick.cy;
       if (Math.abs(dx) > 26 && Math.abs(dx) > Math.abs(dy) * 0.6) this.held.add(dx < 0 ? 'left' : 'right');
-      if (Math.abs(dy) > 38 && Math.abs(dy) > Math.abs(dx) * 0.7) this.held.add(dy < 0 ? 'up' : 'down');
+      // 달리면서 비스듬히 밀어도 사다리를 잡을 수 있게 세로 판정을 넉넉히 둔다
+      if (Math.abs(dy) > 34 && Math.abs(dy) > Math.abs(dx) * 0.45) this.held.add(dy < 0 ? 'up' : 'down');
     }
     if (this.jumpTouch !== null) this.held.add('jump');
   }

@@ -52,6 +52,8 @@ export const fmtTime = (s: number) => {
 
 export class Renderer {
   shakeOn = true;
+  /** 터치 플레이에서 지금 잡을 수 있는 사다리 방향 */
+  ladderHint = { up: false, down: false };
   low = false; // 느린 기기에서 빛 효과를 줄인다
   camY = 0;
   private shake = 0;
@@ -352,6 +354,21 @@ export class Renderer {
       D.lumi(g, px, py, { dir: p.dir, state: p.state, run: p.run, climb: p.climb, t: w.t, vx: p.vx, vy: p.vy, squash: p.squash, stT: p.stT });
     }
     L.push([px + (p.state === 'ladder' ? 20 : p.dir * 22), py - 24, 340, '#ffc46b', 0.5]);
+    // 사다리를 잡을 수 있으면 머리 위에 방향 화살표를 띄운다
+    const { up, down } = this.ladderHint;
+    const arrow = (x: number, dir: number) => {
+      const y = py - 104 + Math.sin(t * 7) * 5;
+      g.beginPath();
+      g.moveTo(x, y + dir * 17); g.lineTo(x - 19, y - dir * 11); g.lineTo(x + 19, y - dir * 11); g.closePath();
+      g.lineJoin = 'round';
+      g.lineWidth = 7;
+      g.strokeStyle = 'rgba(20,16,50,.85)';
+      g.stroke();
+      g.fillStyle = '#ffd84a';
+      g.fill();
+    };
+    if (up) arrow(down ? px - 26 : px, -1);
+    if (down) arrow(up ? px + 26 : px, 1);
     g.restore();
 
     // 어둠을 깔고 빛이 닿는 곳만 걷어낸다
@@ -417,12 +434,16 @@ export class Renderer {
       g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.stroke();
     };
     ring(c.x, c.y, c.r, 'rgba(255,255,255,.07)');
-    g.fillStyle = 'rgba(255,255,255,.5)';
     g.font = `800 ${Math.round(c.r * 0.22)}px ${FONT}`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    const a = c.r * 0.76;
-    g.fillText('▲', c.x, c.y - a); g.fillText('▼', c.x, c.y + a); g.fillText('◀', c.x - a, c.y); g.fillText('▶', c.x + a, c.y);
+    const a = c.r * 0.76, dim = 'rgba(255,255,255,.5)', lit = '#ffd84a';
+    g.fillStyle = this.ladderHint.up ? lit : dim;
+    g.fillText('▲', c.x, c.y - a);
+    g.fillStyle = this.ladderHint.down ? lit : dim;
+    g.fillText('▼', c.x, c.y + a);
+    g.fillStyle = dim;
+    g.fillText('◀', c.x - a, c.y); g.fillText('▶', c.x + a, c.y);
     ring(c.x + kx * k, c.y + ky * k, c.r * 0.4, s ? 'rgba(255,212,120,.7)' : 'rgba(255,255,255,.22)');
     ring(j.x, j.y, j.r, input.jumpTouch !== null ? 'rgba(255,212,120,.7)' : 'rgba(255,255,255,.14)');
     g.fillStyle = 'rgba(255,255,255,.9)';

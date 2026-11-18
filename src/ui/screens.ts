@@ -195,8 +195,9 @@ export class UI {
     this.text('달이 지기 전에 빛나는 열매를 모두 거두세요', W / 2 + 180, 335, 38, '#d8d2f0', 'center', 600);
     const act = this.column(['시작하기', '스테이지 선택', '타임어택', '점수판', '열매 도감', '설정'], 910, 400, 460, 62);
     const k = this.input.keyLabels;
+    const [moveSide, jumpSide] = this.input.swapHands ? ['오른쪽', '왼쪽'] : ['왼쪽', '오른쪽'];
     this.text(this.input.touchMode
-      ? '왼쪽을 밀어 이동·오르기     오른쪽을 눌러 점프     아래로 밀고 점프하면 내려가기'
+      ? `${moveSide}을 밀어 이동·오르기     ${jumpSide}을 눌러 점프     사다리 앞에서 위로 밀면 끝까지 올라갑니다`
       : `이동 ${k.left} ${k.right}     오르기 ${k.up} ${k.down}     점프 ${k.jump}     내려가기 ${k.down} + ${k.jump}     일시정지 Esc`,
       W / 2, 1010, 26, '#a9a6d0', 'center', 600);
     if (hi > 0) this.text(`최고 점수 ${hi}`, 1140, 900, 30, '#ffd84a', 'center', 700);
@@ -278,9 +279,11 @@ export class UI {
     const labels = [
       `효과음  ${bar(save.sfx)}`, `배경음  ${bar(save.music)}`,
       `화면 흔들림  ${onOff(save.shake)}`, `색맹 모드  ${onOff(save.colorSafe)}`,
-      '키 변경', '전체 화면 전환', '돌아가기',
+      '키 변경', '전체 화면 전환',
+      `터치 조작판  ${save.leftHanded ? '이동 오른쪽 · 점프 왼쪽' : '이동 왼쪽 · 점프 오른쪽'}`,
+      '돌아가기',
     ];
-    const act = this.column(labels, 660, 215, 600, 76);
+    const act = this.column(labels, 660, 205, 600, 72);
     const p = this.input.pressed, d = (p.has('right') ? 0.1 : 0) - (p.has('left') ? 0.1 : 0);
     this.text('← → 또는 누르기로 조절', W / 2, 960, 24, '#a9a6d0', 'center', 600);
     const step = (v: number, dv: number) => Math.round(Math.max(0, Math.min(1, v + dv)) * 10) / 10;
@@ -290,7 +293,8 @@ export class UI {
     if (act === 3) { save.colorSafe = !save.colorSafe; return 'changed'; }
     if (act === 4) return 'keys';
     if (act === 5) return 'fullscreen';
-    if (act === 6 || p.has('back')) return 'back';
+    if (act === 6) { save.leftHanded = !save.leftHanded; return 'changed'; }
+    if (act === 7 || p.has('back')) return 'back';
     return '';
   }
 

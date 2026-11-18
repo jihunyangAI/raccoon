@@ -1,7 +1,15 @@
 import { COLS, T, W } from '../core/const';
 import type { Ladder, Stage } from '../stages/types';
 
-export interface Ctl { left: boolean; right: boolean; up: boolean; down: boolean; jump: boolean; jumpPressed: boolean }
+export interface Ctl {
+  left: boolean; right: boolean; up: boolean; down: boolean; jump: boolean; jumpPressed: boolean;
+  /** 터치 조작: 사다리를 더 넓은 범위에서 잡는다 */
+  assist?: boolean;
+  /** 스틱에서 손을 뗀 상태: 잡은 사다리를 끝까지 자동으로 오르내린다 */
+  autoClimb?: boolean;
+}
+const LADDER_REACH = 26;
+const ASSIST_REACH = 54;
 export interface Run { lives: number; score: number; nextLife: number; loop: number }
 export type Fx = (type: string, x: number, y: number, arg?: number | string) => void;
 export type PState = 'ground' | 'air' | 'ladder' | 'dead' | 'cheer';
@@ -49,7 +57,7 @@ export class World {
   p = {
     x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, dir: 1, state: 'ground' as PState, stT: 0,
     coyote: 0, buffer: 0, ladder: null as Ladder | null, dropRow: -1, dropT: 0, noGrab: 0,
-    fallTop: 0, mover: null as Mover | null, squash: 0, run: 0, climb: 0, invuln: 0,
+    fallTop: 0, mover: null as Mover | null, squash: 0, run: 0, climb: 0, climbDir: 0, invuln: 0,
   };
 
   constructor(public st: Stage, public run: Run, public fx: Fx) {
@@ -165,6 +173,26 @@ export class World {
     if ((p.state as PState) !== 'cheer') this.hazards();
   }
 
+  /** 손이 닿는 범위에서 가장 가까운, 오를 사다리와 내려갈 사다리 */
+  private ladderNear(reach: number) {
+    const p = this.p;
+    let up: Ladder | null = null, down: Ladder | null = null, du = reach, dd = reach;
+    for (const l of this.st.ladders) {
+      const d = Math.abs(p.x - l.x);
+      if (d < du && p.y > l.top + 2 && p.y <= l.bottom + 2) { up = l; du = d; }
+      if (d < dd && Math.abs(p.y - l.top) < 3) { down = l; dd = d; }
+    }
+    return { up, down };
+  }
+
+  /** 터치 화면에 보여 줄 안내: 지금 스틱을 밀면 사다리를 잡을 수 있는 방향 */
+  ladderHint() {
+    const p = this.p;
+    if ((p.state !== 'ground' && p.state !== 'air') || p.noGrab > 0) return { up: false, down: false };
+    const n = this.ladderNear(ASSIST_REACH);
+    return { up: !!n.up, down: !!n.down && p.state === 'ground' };
+  }
+
   private movePlayer(dt: number, c: Ctl) {
     const p = this.p, st = this.st;
     const ax = (c.right ? 1 : 0) - (c.left ? 1 : 0);
@@ -177,7 +205,11 @@ export class World {
       // 사다리 중앙으로 자동 보정. 덩굴이면 흔들림을 따라간다
       const lx = st.zone === 2 ? l.x + vineSway(p.y, l.top, this.t) : l.x;
       p.x += (lx - p.x) * Math.min(1, dt * 18);
-      const dy = ((c.down ? 1 : 0) - (c.up ? 1 : 0)) * 230;
+      let dir = (c.down ? 1 : 0) - (c.up ? 1 : 0);
+      if (dir) p.climbDir = dir;
+      else if (c.autoClimb) dir = p.climbDir;
+      else if (c.assist) p.climbDir = 0; // 스틱을 가운데에 두면 그 자리에 멈춘다
+      const dy = dir * 230;
       p.y += dy * dt;
       p.climb += Math.abs(dy) * dt;
       p.vx = p.vy = 0;
@@ -210,13 +242,14 @@ export class World {
 
     // 사다리 잡기
     if ((c.up || c.down) && p.noGrab <= 0) {
-      for (const l of st.ladders) {
-        if (Math.abs(p.x - l.x) >= 26) continue;
-        if (c.up && p.y > l.top + 2 && p.y <= l.bottom + 2) { p.state = 'ladder'; p.ladder = l; p.mover = null; return; }
-        if (c.down && grounded && p.buffer <= 0 && Math.abs(p.y - l.top) < 3) {
-          p.state = 'ladder'; p.ladder = l; p.y += 3; p.mover = null;
-          return;
-        }
+      const near = this.ladderNear(c.assist ? ASSIST_REACH : LADDER_REACH);
+      if (c.up && near.up) {
+        p.state = 'ladder'; p.ladder = near.up; p.mover = null; p.climbDir = -1;
+        return;
+      }
+      if (c.down && grounded && p.buffer <= 0 && near.down) {
+        p.state = 'ladder'; p.ladder = near.down; p.y += 3; p.mover = null; p.climbDir = 1;
+        return;
       }
     }
 
