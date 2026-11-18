@@ -188,8 +188,7 @@ export class UI {
   /** 휴대폰·태블릿용 타이틀: 작은 화면에서도 읽고 누르기 쉽게 메뉴를 크게 둔다 */
   private touchTitle(t: number, hi: number): number {
     const g = this.g, w = 560, h = 205, gap = 28, x0 = (W - w * 2 - gap) / 2, y0 = 265;
-    const side = 193, cy = 690, padX = this.input.swapHands ? W - side : side, okX = W - padX;
-    this.titlePadInput(padX, okX, cy, t);
+    this.touchPad(193, 690);
     g.save();
     g.translate(195, 460);
     g.scale(2.8, 2.8);
@@ -200,7 +199,6 @@ export class UI {
     this.text('2026너구리', W / 2, 115, 130, '#fff3c8', 'center', 900);
     g.shadowBlur = 0;
     if (hi > 0) this.text(`최고 ${hi}`, 50, 62, 40, '#ffd84a', 'left', 800);
-    this.drawTitlePad(padX, okX, cy, t);
     const labels = ['시작하기', '스테이지 선택', '타임어택', '점수판', '열매 도감', '설정'];
     const act = this.menu(labels.map((label, i) => ({
       label, size: 72, w, h, x: x0 + (i % 2) * (w + gap), y: y0 + Math.floor(i / 2) * (h + gap),
@@ -210,23 +208,27 @@ export class UI {
     return act;
   }
 
-  /** 십자판과 확인 버튼을 누르면 키보드를 누른 것과 똑같이 메뉴에 전달한다 */
-  private titlePadInput(padX: number, okX: number, cy: number, t: number) {
-    const m = this.input.mouse;
-    if (!m.click) return;
-    const dx = m.x - padX, dy = m.y - cy, d = Math.hypot(dx, dy);
-    let key: Action | '' = '';
-    if (d > 28 && d <= 187) key = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
-    else if (Math.hypot(m.x - okX, m.y - cy) <= 150) key = 'ok';
-    if (!key) return;
-    this.input.pressed.add(key);
-    this.padKey = key;
-    this.padUntil = t + 0.16;
-  }
+  /**
+   * 터치 메뉴용 십자판과 확인 버튼. 누르면 키보드를 누른 것과 똑같이 메뉴에 전달하므로
+   * menu()보다 먼저 호출한다. side는 화면 가장자리에서 버튼 중심까지의 거리다.
+   */
+  private touchPad(side: number, cy: number) {
+    const s = side / 193, padX = this.input.swapHands ? W - side : side, okX = W - padX;
+    const now = performance.now() / 1000, m = this.input.mouse;
+    if (m.click) {
+      const dx = m.x - padX, dy = m.y - cy, d = Math.hypot(dx, dy);
+      let key: Action | '' = '';
+      if (d > 28 * s && d <= 187 * s) key = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+      else if (Math.hypot(m.x - okX, m.y - cy) <= 150 * s) key = 'ok';
+      if (key) {
+        this.input.pressed.add(key);
+        this.padKey = key;
+        this.padUntil = now + 0.16;
+      }
+    }
 
-  private drawTitlePad(padX: number, okX: number, cy: number, t: number) {
-    const g = this.g, on = t < this.padUntil ? this.padKey : '';
-    const arm = 170, half = 58, gold = 'rgba(255,212,120,.95)', base = 'rgba(30,32,78,.92)';
+    const g = this.g, on = now < this.padUntil ? this.padKey : '';
+    const arm = 170 * s, half = 58 * s, gold = 'rgba(255,212,120,.95)', base = 'rgba(30,32,78,.92)';
     g.strokeStyle = 'rgba(255,246,216,.55)';
     g.lineWidth = 4;
     g.beginPath();
@@ -237,9 +239,9 @@ export class UI {
     D.rr(g, padX - arm, cy - half, arm * 2, half * 2, 22, base);
     const dirs: [Action, number, number][] = [['up', 0, -1], ['down', 0, 1], ['left', -1, 0], ['right', 1, 0]];
     for (const [key, ax, ay] of dirs) {
-      const x = padX + ax * 112, y = cy + ay * 112, lit = on === key;
-      if (lit) D.rr(g, x - 52, y - 52, 104, 104, 20, gold);
-      const tip = 32, wing = 30, back = 20;
+      const x = padX + ax * 112 * s, y = cy + ay * 112 * s, lit = on === key, box = 52 * s;
+      if (lit) D.rr(g, x - box, y - box, box * 2, box * 2, 20, gold);
+      const tip = 32 * s, wing = 30 * s, back = 20 * s;
       g.fillStyle = lit ? '#2a2040' : '#fff';
       g.beginPath();
       g.moveTo(x + ax * tip, y + ay * tip);
@@ -249,11 +251,11 @@ export class UI {
       g.fill();
     }
     const lit = on === 'ok';
-    D.ell(g, okX, cy, 132, 132, lit ? '#fff0b8' : gold);
+    D.ell(g, okX, cy, 132 * s, 132 * s, lit ? '#fff0b8' : gold);
     g.strokeStyle = '#fff6d8';
     g.lineWidth = 5;
-    g.beginPath(); g.arc(okX, cy, 132, 0, Math.PI * 2); g.stroke();
-    this.text('확인', okX, cy + 3, 68, '#2a2040', 'center', 900);
+    g.beginPath(); g.arc(okX, cy, 132 * s, 0, Math.PI * 2); g.stroke();
+    this.text('확인', okX, cy + 3, 68 * s, '#2a2040', 'center', 900);
   }
 
   title(t: number, hi: number): number {
@@ -280,11 +282,18 @@ export class UI {
   /** 0~23 스테이지 번호, 24 뒤로 */
   select(save: Save, count: number, timeAttack = false): number {
     this.dim(0.45);
-    this.text(timeAttack ? '타임어택' : '스테이지 선택', W / 2, 90, 64, '#fff3c8', 'center', 900);
+    const touch = this.input.touchMode;
+    // 터치 기기는 양옆을 십자판과 확인 버튼에 내주고 구역 이름을 각 줄 위로 올린다
+    const grid = touch
+      ? { x: 330, y: 135, dx: 212, dy: 190, w: 200, h: 143, num: 38 }
+      : { x: 440, y: 180, dx: 235, dy: 185, w: 210, h: 150, num: 32 };
+    if (touch) this.touchPad(165, 540);
+    this.text(timeAttack ? '타임어택' : '스테이지 선택', W / 2, touch ? 58 : 90, touch ? 56 : 64, '#fff3c8', 'center', 900);
     const golds = Object.values(save.best).filter((b) => b.gold).length;
-    this.text(`황금 열매 ${golds} / ${count}`, 80, 96, 30, '#ffd84a', 'left', 700);
+    this.text(`황금 열매 ${golds} / ${count}`, touch ? 40 : 80, touch ? 58 : 96, touch ? 34 : 30, '#ffd84a', 'left', 700);
     const g = this.g;
     for (let z = 0; z < 4; z++) {
+      if (touch) { this.text(ZNAME[z], grid.x + 4, grid.y - 20 + z * grid.dy, 28, '#d8d2f0', 'left', 800); continue; }
       const cy = 255 + z * 185;
       D.rr(g, 70, cy - 46, 92, 92, 24, 'rgba(30,32,78,.85)');
       emblem(g, 116, cy, z);
@@ -294,7 +303,7 @@ export class UI {
     for (let i = 0; i < count; i++) {
       const z = Math.floor(i / 6), k = i % 6, b = save.best[i], locked = i > save.unlocked;
       items.push({
-        x: 440 + k * 235, y: 180 + z * 185, w: 210, h: 150, locked,
+        x: grid.x + k * grid.dx, y: grid.y + z * grid.dy, w: grid.w, h: grid.h, locked,
         draw: (it) => {
           // 스테이지 그림 위에 번호, 랭크, 황금 열매를 얹는다
           const x = it.x + 6, y = it.y + 6, w = it.w - 12, h = it.h - 12;
@@ -307,7 +316,7 @@ export class UI {
           g.fillStyle = band;
           g.fillRect(x, y + h - 70, w, 70);
           g.restore();
-          this.text(`${z + 1}-${k + 1}`, x + 14, y + h - 22, 32, '#fff', 'left', 900);
+          this.text(`${z + 1}-${k + 1}`, x + 14, y + h - 22, grid.num, '#fff', 'left', 900);
           if (locked) {
             g.globalAlpha = 1;
             D.rr(g, x, y, w, h, 15, 'rgba(8,10,34,.45)');
@@ -336,7 +345,7 @@ export class UI {
         },
       });
     }
-    items.push({ label: '뒤로', x: 80, y: 950, w: 240, h: 76 });
+    items.push(touch ? { label: '뒤로', x: 810, y: 900, w: 300, h: 100, size: 48 } : { label: '뒤로', x: 80, y: 950, w: 240, h: 76 });
     const act = this.menu(items, 6);
     if (this.input.pressed.has('back')) return count;
     return act;
@@ -345,6 +354,7 @@ export class UI {
   /** 값이 바뀌면 'changed' */
   settings(save: Save): 'back' | 'changed' | 'fullscreen' | 'keys' | '' {
     this.dim(0.45);
+    if (this.input.touchMode) this.touchPad(250, 540);
     this.panel(560, 70, 800, 940);
     this.text('설정', W / 2, 140, 60, '#fff3c8', 'center', 900);
     const bar = (v: number) => '■'.repeat(Math.round(v * 10)) + '□'.repeat(10 - Math.round(v * 10));
@@ -476,9 +486,21 @@ export class UI {
 
   pause(): number {
     this.dim();
-    this.panel(660, 220, 600, 640);
-    this.text('일시정지', W / 2, 310, 60, '#fff3c8', 'center', 900);
-    const act = this.column(['계속하기', '다시 시작', '스테이지 선택', '타이틀로'], 730, 400);
+    const labels = ['계속하기', '다시 시작', '스테이지 선택', '타이틀로'];
+    let act: number;
+    if (this.input.touchMode) {
+      // 작은 화면에서도 읽고 누르기 쉽게 크게 보여 준다
+      const w = 620, h = 270, gap = 40, x0 = (W - w * 2 - gap) / 2, y0 = 310;
+      this.panel(x0 - 60, 110, w * 2 + gap + 120, 840);
+      this.text('일시정지', W / 2, 210, 92, '#fff3c8', 'center', 900);
+      act = this.menu(labels.map((label, i) => ({
+        label, size: 78, w, h, x: x0 + (i % 2) * (w + gap), y: y0 + Math.floor(i / 2) * (h + gap),
+      })), 2);
+    } else {
+      this.panel(660, 220, 600, 640);
+      this.text('일시정지', W / 2, 310, 60, '#fff3c8', 'center', 900);
+      act = this.column(labels, 730, 400);
+    }
     return this.input.pressed.has('pause') ? 0 : act;
   }
 
