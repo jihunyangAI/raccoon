@@ -145,6 +145,7 @@ export class Sound {
   private step = 0;
   private nextT = 0;
   private hidden = false;
+  paused = false;
 
   /** 첫 사용자 입력에서 호출 (브라우저 자동재생 정책) */
   unlock() {
@@ -175,7 +176,19 @@ export class Sound {
   applyVolume() {
     if (!this.ctx) return;
     this.sfxG.gain.value = this.sfxVol;
-    this.musG.gain.value = this.musVol * 0.8;
+    this.musG.gain.value = this.paused ? 0 : this.musVol * 0.8;
+  }
+
+  /** 일시정지: 배경음악만 멈추고, 풀면 멈춘 자리부터 이어서 연주한다 (효과음은 그대로) */
+  setPaused(paused: boolean) {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    const c = this.ctx;
+    if (!c) return;
+    const gain = this.musG.gain;
+    gain.cancelScheduledValues(c.currentTime);
+    gain.setTargetAtTime(paused ? 0 : this.musVol * 0.8, c.currentTime, 0.015);
+    if (!paused) this.nextT = c.currentTime + 0.05;
   }
 
   /** 배경음을 멈추고 징글을 한 번 연주한다 */
@@ -277,7 +290,7 @@ export class Sound {
 
   private tick() {
     const c = this.ctx, t = this.track;
-    if (!c || !t || c.state !== 'running') return;
+    if (!c || !t || this.paused || c.state !== 'running') return;
     if (this.nextT < c.currentTime - 0.2) this.nextT = c.currentTime + 0.05;
     while (this.nextT < c.currentTime + 0.12) {
       const spb = 60 / (t.bpm * this.tempoScale) / 2;

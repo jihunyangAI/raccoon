@@ -78,6 +78,8 @@ const taTime = () => world.clock + world.deaths * DEATH_PENALTY;
 
 function go(s: Scene, sel = 0) {
   scene = s;
+  // 일시정지에서 그만두고 이름을 적는 동안에도 음악은 멈춘 채로 둔다
+  audio.setPaused(s === 'pause' || (audio.paused && (s === 'name' || s === 'scores')));
   menuLock = s === 'result' || s === 'timeResult' || s === 'over' || s === 'name' ? 0.6 : 0;
   ui.open(sel);
   input.capture = s === 'name' ? typeName : undefined;
