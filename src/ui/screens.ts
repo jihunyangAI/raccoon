@@ -1,6 +1,6 @@
 import type { Sound } from '../core/audio';
 import { FONT, H, W, rng } from '../core/const';
-import { keyName, type Input } from '../core/input';
+import { keyName, type Action, type Input } from '../core/input';
 import type { Bindable, Save } from '../core/save';
 import { MAX_SCORES, NAME_CHARS, NAME_LENGTH } from '../core/scores';
 import { paintFar, paintSky, themeFor } from '../render/backgrounds';
@@ -115,6 +115,8 @@ function padlock(g: C, x: number, y: number) {
 /** 캔버스에 직접 그리는 즉시 모드 UI. 키보드·게임패드·마우스를 모두 받는다 */
 export class UI {
   sel = 0;
+  private padKey: Action | '' = '';
+  private padUntil = 0;
   constructor(private g: C, private input: Input, private audio: Sound) {}
 
   open(i = 0) { this.sel = i; }
@@ -185,17 +187,20 @@ export class UI {
 
   /** 휴대폰·태블릿용 타이틀: 작은 화면에서도 읽고 누르기 쉽게 메뉴를 크게 둔다 */
   private touchTitle(t: number, hi: number): number {
-    const g = this.g, w = 620, h = 205, gap = 28, x0 = (W - w * 2 - gap) / 2, y0 = 265;
+    const g = this.g, w = 560, h = 205, gap = 28, x0 = (W - w * 2 - gap) / 2, y0 = 265;
+    const side = 193, cy = 690, padX = this.input.swapHands ? W - side : side, okX = W - padX;
+    this.titlePadInput(padX, okX, cy, t);
     g.save();
-    g.translate(205, 900);
-    g.scale(3.2, 3.2);
+    g.translate(195, 460);
+    g.scale(2.8, 2.8);
     D.lumi(g, 0, 0, { dir: 1, state: 'ground', run: 0, climb: 0, t, vx: 0, vy: 0, squash: 0, stT: 0 });
     g.restore();
     g.shadowColor = 'rgba(255,200,110,.7)';
     g.shadowBlur = 36;
     this.text('2026너구리', W / 2, 115, 130, '#fff3c8', 'center', 900);
     g.shadowBlur = 0;
-    if (hi > 0) this.text(`최고 ${hi}`, 60, 70, 44, '#ffd84a', 'left', 800);
+    if (hi > 0) this.text(`최고 ${hi}`, 50, 62, 40, '#ffd84a', 'left', 800);
+    this.drawTitlePad(padX, okX, cy, t);
     const labels = ['시작하기', '스테이지 선택', '타임어택', '점수판', '열매 도감', '설정'];
     const act = this.menu(labels.map((label, i) => ({
       label, size: 72, w, h, x: x0 + (i % 2) * (w + gap), y: y0 + Math.floor(i / 2) * (h + gap),
@@ -203,6 +208,52 @@ export class UI {
     const [moveSide, jumpSide] = this.input.swapHands ? ['오른쪽', '왼쪽'] : ['왼쪽', '오른쪽'];
     this.text(`${moveSide}을 밀어 이동     ${jumpSide}을 눌러 점프`, W / 2, 1000, 44, '#c9c5e6', 'center', 700);
     return act;
+  }
+
+  /** 십자판과 확인 버튼을 누르면 키보드를 누른 것과 똑같이 메뉴에 전달한다 */
+  private titlePadInput(padX: number, okX: number, cy: number, t: number) {
+    const m = this.input.mouse;
+    if (!m.click) return;
+    const dx = m.x - padX, dy = m.y - cy, d = Math.hypot(dx, dy);
+    let key: Action | '' = '';
+    if (d > 28 && d <= 187) key = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+    else if (Math.hypot(m.x - okX, m.y - cy) <= 150) key = 'ok';
+    if (!key) return;
+    this.input.pressed.add(key);
+    this.padKey = key;
+    this.padUntil = t + 0.16;
+  }
+
+  private drawTitlePad(padX: number, okX: number, cy: number, t: number) {
+    const g = this.g, on = t < this.padUntil ? this.padKey : '';
+    const arm = 170, half = 58, gold = 'rgba(255,212,120,.95)', base = 'rgba(30,32,78,.92)';
+    g.strokeStyle = 'rgba(255,246,216,.55)';
+    g.lineWidth = 4;
+    g.beginPath();
+    g.roundRect(padX - half, cy - arm, half * 2, arm * 2, 22);
+    g.roundRect(padX - arm, cy - half, arm * 2, half * 2, 22);
+    g.stroke();
+    D.rr(g, padX - half, cy - arm, half * 2, arm * 2, 22, base);
+    D.rr(g, padX - arm, cy - half, arm * 2, half * 2, 22, base);
+    const dirs: [Action, number, number][] = [['up', 0, -1], ['down', 0, 1], ['left', -1, 0], ['right', 1, 0]];
+    for (const [key, ax, ay] of dirs) {
+      const x = padX + ax * 112, y = cy + ay * 112, lit = on === key;
+      if (lit) D.rr(g, x - 52, y - 52, 104, 104, 20, gold);
+      const tip = 32, wing = 30, back = 20;
+      g.fillStyle = lit ? '#2a2040' : '#fff';
+      g.beginPath();
+      g.moveTo(x + ax * tip, y + ay * tip);
+      g.lineTo(x - ax * back - ay * wing, y - ay * back + ax * wing);
+      g.lineTo(x - ax * back + ay * wing, y - ay * back - ax * wing);
+      g.closePath();
+      g.fill();
+    }
+    const lit = on === 'ok';
+    D.ell(g, okX, cy, 132, 132, lit ? '#fff0b8' : gold);
+    g.strokeStyle = '#fff6d8';
+    g.lineWidth = 5;
+    g.beginPath(); g.arc(okX, cy, 132, 0, Math.PI * 2); g.stroke();
+    this.text('확인', okX, cy + 3, 68, '#2a2040', 'center', 900);
   }
 
   title(t: number, hi: number): number {
