@@ -25,7 +25,8 @@ export class Input {
   onFirstTouch?: () => void;
   /** 설정에서 키를 바꾸는 동안 다음 입력을 받아 간다 */
   capture?: (code: string) => void;
-  touchMode = false;
+  /** 손가락이 주 입력인 기기는 첫 화면부터 터치용으로 보여 준다 */
+  touchMode = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   playing = false;
   /** 터치 플레이 중의 조작판 배치 */
   layout?: TouchLayout;

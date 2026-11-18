@@ -11,6 +11,8 @@ type C = CanvasRenderingContext2D;
 
 export interface Item {
   label?: string; x: number; y: number; w: number; h: number; locked?: boolean;
+  /** 글자 크기를 직접 정할 때 */
+  size?: number;
   draw?: (it: Item, selected: boolean) => void;
 }
 export interface Result { fruit: number; timeBonus: number; maxCombo: number; rank: string; gold: boolean; bonus: boolean; total: number; final?: boolean }
@@ -166,7 +168,7 @@ export class UI {
       }
       if (it.locked) g.globalAlpha = 0.4;
       if (it.draw) it.draw(it, on);
-      else if (it.label) this.text(it.label, it.x + it.w / 2, it.y + it.h / 2 + 2, Math.min(36, it.h * 0.42), on ? '#2a2040' : '#fff');
+      else if (it.label) this.text(it.label, it.x + it.w / 2, it.y + it.h / 2 + 2, it.size ?? Math.min(36, it.h * 0.42), on ? '#2a2040' : '#fff');
       g.globalAlpha = 1;
     });
 
@@ -181,7 +183,30 @@ export class UI {
     return this.menu(labels.map((label, i) => ({ label, x, y: y + i * (h + 18), w, h })));
   }
 
+  /** 휴대폰·태블릿용 타이틀: 작은 화면에서도 읽고 누르기 쉽게 메뉴를 크게 둔다 */
+  private touchTitle(t: number, hi: number): number {
+    const g = this.g, w = 620, h = 205, gap = 28, x0 = (W - w * 2 - gap) / 2, y0 = 265;
+    g.save();
+    g.translate(205, 900);
+    g.scale(3.2, 3.2);
+    D.lumi(g, 0, 0, { dir: 1, state: 'ground', run: 0, climb: 0, t, vx: 0, vy: 0, squash: 0, stT: 0 });
+    g.restore();
+    g.shadowColor = 'rgba(255,200,110,.7)';
+    g.shadowBlur = 36;
+    this.text('2026너구리', W / 2, 115, 130, '#fff3c8', 'center', 900);
+    g.shadowBlur = 0;
+    if (hi > 0) this.text(`최고 ${hi}`, 60, 70, 44, '#ffd84a', 'left', 800);
+    const labels = ['시작하기', '스테이지 선택', '타임어택', '점수판', '열매 도감', '설정'];
+    const act = this.menu(labels.map((label, i) => ({
+      label, size: 72, w, h, x: x0 + (i % 2) * (w + gap), y: y0 + Math.floor(i / 2) * (h + gap),
+    })), 2);
+    const [moveSide, jumpSide] = this.input.swapHands ? ['오른쪽', '왼쪽'] : ['왼쪽', '오른쪽'];
+    this.text(`${moveSide}을 밀어 이동     ${jumpSide}을 눌러 점프`, W / 2, 1000, 44, '#c9c5e6', 'center', 700);
+    return act;
+  }
+
   title(t: number, hi: number): number {
+    if (this.input.touchMode) return this.touchTitle(t, hi);
     const g = this.g;
     g.save();
     g.translate(430, 880);
@@ -195,10 +220,7 @@ export class UI {
     this.text('달이 지기 전에 빛나는 열매를 모두 거두세요', W / 2 + 180, 335, 38, '#d8d2f0', 'center', 600);
     const act = this.column(['시작하기', '스테이지 선택', '타임어택', '점수판', '열매 도감', '설정'], 910, 400, 460, 62);
     const k = this.input.keyLabels;
-    const [moveSide, jumpSide] = this.input.swapHands ? ['오른쪽', '왼쪽'] : ['왼쪽', '오른쪽'];
-    this.text(this.input.touchMode
-      ? `${moveSide}을 밀어 이동·오르기     ${jumpSide}을 눌러 점프     사다리 앞에서 위로 밀면 끝까지 올라갑니다`
-      : `이동 ${k.left} ${k.right}     오르기 ${k.up} ${k.down}     점프 ${k.jump}     내려가기 ${k.down} + ${k.jump}     일시정지 Esc`,
+    this.text(`이동 ${k.left} ${k.right}     오르기 ${k.up} ${k.down}     점프 ${k.jump}     내려가기 ${k.down} + ${k.jump}     일시정지 Esc`,
       W / 2, 1010, 26, '#a9a6d0', 'center', 600);
     if (hi > 0) this.text(`최고 점수 ${hi}`, 1140, 900, 30, '#ffd84a', 'center', 700);
     return act;
