@@ -302,7 +302,7 @@ export class UI {
     const names: Record<Bindable, string> = { left: '왼쪽', right: '오른쪽', up: '위', down: '아래', jump: '점프' };
     const labels = order.map((a, i) => `${names[a]}  :  ${i === waiting ? '새 키를 누르세요' : keyName(save.keys[a])}`);
     const act = this.column([...labels, '기본값으로', '돌아가기'], 660, 215, 600, 76);
-    this.text(waiting >= 0 ? 'Esc로 취소' : 'WASD와 Z는 겹치지 않는 한 함께 쓸 수 있습니다', W / 2, 960, 24, '#a9a6d0', 'center', 600);
+    this.text(waiting >= 0 ? 'Esc를 누르거나 화면을 누르면 취소' : 'WASD와 Z는 겹치지 않는 한 함께 쓸 수 있습니다', W / 2, 960, 24, '#a9a6d0', 'center', 600);
     if (waiting >= 0) return -1;
     return this.input.pressed.has('back') ? 6 : act;
   }

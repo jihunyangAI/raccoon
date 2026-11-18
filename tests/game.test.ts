@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { JINGLES, TRACKS, freq, jingleSeconds } from '../src/core/audio';
 import { COLS, STEP, T } from '../src/core/const';
+import { touchLayout } from '../src/core/layout';
+import { DEFAULT_KEYS, parseSave } from '../src/core/save';
 import { MAX_SCORES, insertScore, rankFor } from '../src/core/scores';
 import { World, type Ctl } from '../src/physics/world';
 import { BONUS, DEFS } from '../src/stages/defs';
@@ -89,6 +91,40 @@ describe('점수판', () => {
     expect(r.rank).toBe(9);
     expect(r.list).toHaveLength(MAX_SCORES);
     expect(r.list[9].name).toBe('NEW');
+  });
+});
+
+describe('저장 데이터', () => {
+  it('망가진 항목은 기본값으로 바꾸고 멀쩡한 값은 지킨다', () => {
+    const s = parseSave(JSON.stringify({
+      hi: 900, scores: [null, { name: 'AAA', score: 5, stage: '1-1', date: '-' }], best: null, sfx: 'x', keys: { left: 'KeyQ', jump: 3 },
+    }));
+    expect(s.hi).toBe(900);
+    expect(s.scores).toHaveLength(1);
+    expect(s.best).toEqual({});
+    expect(s.sfx).toBe(0.7);
+    expect(s.keys).toEqual({ ...DEFAULT_KEYS, left: 'KeyQ' });
+    expect(parseSave('null').scores).toEqual([]);
+  });
+});
+
+describe('터치 조작판', () => {
+  it.each([[844, 390], [667, 375], [932, 430], [568, 320], [1024, 768], [1366, 1024], [2000, 900]])('%i×%i: 게임을 가리지 않고 화면 안에 있다', (vw, vh) => {
+    const inset = vw === 844 ? { l: 47, r: 47, t: 0, b: 21 } : undefined;
+    const { game, stick, jump, pause } = touchLayout(vw, vh, inset);
+    expect(game.w / game.h).toBeCloseTo(16 / 9, 1);
+    expect(game.x).toBeGreaterThanOrEqual(0);
+    expect(game.y).toBeGreaterThanOrEqual(0);
+    expect(game.x + game.w).toBeLessThanOrEqual(vw);
+    expect(game.y + game.h).toBeLessThanOrEqual(vh);
+    for (const c of [stick, jump, pause]) {
+      expect(c.x - c.r).toBeGreaterThanOrEqual(0);
+      expect(c.y - c.r).toBeGreaterThanOrEqual(0);
+      expect(c.x + c.r).toBeLessThanOrEqual(vw);
+      expect(c.y + c.r).toBeLessThanOrEqual(vh);
+      const outside = c.x + c.r <= game.x || c.x - c.r >= game.x + game.w || c.y + c.r <= game.y || c.y - c.r >= game.y + game.h;
+      expect(outside).toBe(true);
+    }
   });
 });
 

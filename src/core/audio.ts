@@ -144,6 +144,7 @@ export class Sound {
   private track?: Track;
   private step = 0;
   private nextT = 0;
+  private hidden = false;
 
   /** 첫 사용자 입력에서 호출 (브라우저 자동재생 정책) */
   unlock() {
@@ -160,7 +161,15 @@ export class Sound {
       setInterval(() => this.tick(), 25);
       if (this.want) { const w = this.want; this.want = ''; this.play(w); }
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume();
+    // iOS는 전화 등으로 끊기면 'interrupted' 상태가 되므로 running이 아니면 모두 깨운다
+    if (!this.hidden && this.ctx.state !== 'running') void this.ctx.resume();
+  }
+
+  /** 탭이나 앱이 뒤로 가면 소리를 멈추고, 돌아오면 이어서 재생한다 */
+  setHidden(hidden: boolean) {
+    this.hidden = hidden;
+    if (!this.ctx) return;
+    void (hidden ? this.ctx.suspend() : this.ctx.resume()).catch(() => {});
   }
 
   applyVolume() {

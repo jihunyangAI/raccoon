@@ -1,6 +1,7 @@
 import { Sound } from './core/audio';
 import { H, STEP, W } from './core/const';
 import { Input, RESERVED } from './core/input';
+import { touchLayout, type TouchLayout } from './core/layout';
 import { DEFAULT_KEYS, loadSave, storeSave, type Bindable } from './core/save';
 import { NAME_CHARS, NAME_LENGTH, insertScore, rankFor } from './core/scores';
 import { World, type Fx, type Run } from './physics/world';
@@ -17,6 +18,8 @@ const DEATH_PENALTY = 5;
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const g = canvas.getContext('2d')!;
+const padCanvas = document.getElementById('pad') as HTMLCanvasElement;
+const padG = padCanvas.getContext('2d')!;
 const save = loadSave();
 // 점수판이 생기기 전의 최고 점수도 잃지 않게 옮겨 둔다
 if (!save.scores.length && save.hi > 0) save.scores = [{ name: '이전', score: save.hi, stage: '-', date: '-' }];
@@ -44,6 +47,7 @@ let world: World;
 let stageIdx = 0;
 let timeAttack = false;
 let waitingKey = -1;
+let menuLock = 0; // 결과 화면이 뜬 직후 점프 연타로 넘어가지 않게 입력을 잠시 막는다
 let recorded = false; // 이번 판 점수를 이미 처리했는가
 let playerName = '';
 let scoreRank = -1;
@@ -54,6 +58,8 @@ let acc = 0;
 let scale = 1;
 let time = 0;
 let maxDpr = 2;
+let padDpr = 1;
+let layout: TouchLayout | undefined;
 let frameAvg = 1 / 60;
 let slowFor = 0;
 let res: Result = { fruit: 0, timeBonus: 0, maxCombo: 0, rank: 'C', gold: false, bonus: false, total: 0 };
@@ -71,6 +77,7 @@ const taTime = () => world.clock + world.deaths * DEATH_PENALTY;
 
 function go(s: Scene, sel = 0) {
   scene = s;
+  menuLock = s === 'result' || s === 'timeResult' || s === 'over' || s === 'name' ? 0.6 : 0;
   ui.open(sel);
   input.capture = s === 'name' ? typeName : undefined;
   input.clear();
@@ -126,6 +133,7 @@ function confirmName() {
 }
 
 function typeName(code: string) {
+  if (menuLock > 0) return;
   const m = /^(?:Key|Digit)(.)$/.exec(code);
   if (m) {
     if (playerName.length < NAME_LENGTH) { playerName += m[1]; audio.sfx('ui'); } else audio.sfx('no');
@@ -182,20 +190,48 @@ function nextStage() {
   else startStage(stageIdx + 1);
 }
 
+const padWanted = () => input.touchMode && scene === 'play';
+
+function safeInsets() {
+  const css = getComputedStyle(document.documentElement);
+  const px = (name: string) => parseFloat(css.getPropertyValue(name)) || 0;
+  return { l: px('--sl'), r: px('--sr'), t: px('--st'), b: px('--sb') };
+}
+
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
-  const s = Math.min(innerWidth / W, innerHeight / H);
-  const cw = Math.floor(W * s), ch = Math.floor(H * s);
+  const vw = innerWidth, vh = innerHeight;
+  // 터치 플레이 중에는 게임을 줄여 조작판 자리를 따로 비운다
+  layout = padWanted() ? touchLayout(vw, vh, safeInsets()) : undefined;
+  input.layout = layout;
+  const box = layout?.game;
+  const s = box ? box.w / W : Math.min(vw / W, vh / H);
+  const cw = box ? box.w : Math.floor(W * s), ch = box ? box.h : Math.floor(H * s);
   canvas.style.width = `${cw}px`;
   canvas.style.height = `${ch}px`;
+  canvas.style.position = box ? 'fixed' : '';
+  canvas.style.left = box ? `${box.x}px` : '';
+  canvas.style.top = box ? `${box.y}px` : '';
   canvas.width = Math.max(1, Math.round(cw * dpr));
   canvas.height = Math.max(1, Math.round(ch * dpr));
   scale = canvas.width / W;
+
+  padDpr = dpr;
+  padCanvas.style.display = layout ? 'block' : 'none';
+  if (layout) {
+    padCanvas.style.width = `${vw}px`;
+    padCanvas.style.height = `${vh}px`;
+    padCanvas.width = Math.round(vw * dpr);
+    padCanvas.height = Math.round(vh * dpr);
+  }
 }
 addEventListener('resize', resize);
 addEventListener('orientationchange', resize);
 resize();
-document.addEventListener('visibilitychange', () => { if (document.hidden && scene === 'play') go('pause'); });
+document.addEventListener('visibilitychange', () => {
+  audio.setHidden(document.hidden);
+  if (document.hidden && scene === 'play') go('pause');
+});
 
 /** 프레임이 계속 밀리면 해상도와 빛 효과를 낮춘다 */
 function watchPerformance(dt: number) {
@@ -298,8 +334,12 @@ function menuScreens() {
       else void document.documentElement.requestFullscreen?.().catch(() => {});
     } else if (a === 'back') go('title', 5);
   } else {
+    const waiting = waitingKey >= 0;
     const a = ui.keys(save, BINDS, waitingKey);
-    if (a >= 0 && a < BINDS.length) { waitingKey = a; input.capture = bindKey; }
+    if (waiting) {
+      // 키보드가 없는 기기도 빠져나올 수 있게 터치·클릭·게임패드로 취소한다
+      if (input.mouse.click || input.pressed.has('back')) { waitingKey = -1; input.capture = undefined; }
+    } else if (a >= 0 && a < BINDS.length) { waitingKey = a; input.capture = bindKey; }
     else if (a === 5) { save.keys = { ...DEFAULT_KEYS }; input.setKeys(save.keys); storeSave(save); }
     else if (a === 6) go('settings', 4);
   }
@@ -316,7 +356,11 @@ function render() {
 
   R.draw(world, scene === 'play' ? acc / STEP : 1, time);
   R.hud(world, run, save.hi, time, timeAttack ? taTime() : undefined);
-  if (scene === 'play' && input.touchMode) R.controls(input);
+  if (layout) {
+    padG.setTransform(padDpr, 0, 0, padDpr, 0, 0);
+    padG.clearRect(0, 0, innerWidth, innerHeight);
+    R.controls(padG, input, layout);
+  }
   if (scene === 'pause') {
     const a = ui.pause();
     if (a === 0) go('play');
@@ -346,7 +390,13 @@ function frame(now: number) {
   time += dt;
   watchPerformance(dt);
   input.playing = scene === 'play';
+  if (padWanted() !== !!layout) resize();
   input.poll();
+  if (menuLock > 0) {
+    menuLock -= dt;
+    input.pressed.clear();
+    input.mouse.click = false;
+  }
   update(dt);
   render();
   input.clear();

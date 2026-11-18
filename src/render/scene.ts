@@ -1,5 +1,6 @@
 import { COLS, FONT, H, T, W, rng } from '../core/const';
-import { JUMP_BTN, PAUSE_BTN, STICK_HOME, type Input } from '../core/input';
+import { STICK_R, type Input } from '../core/input';
+import type { TouchLayout } from '../core/layout';
 import { vineSway, type Run, type World } from '../physics/world';
 import type { Stage } from '../stages/types';
 import { paintFar, paintSky, themeFor, type Theme } from './backgrounds';
@@ -402,36 +403,34 @@ export class Renderer {
   }
 
   /** 터치 조작 버튼 */
-  controls(input: Input) {
-    const g = this.g, s = input.stick;
-    // 여백에서 시작한 터치도 스틱은 화면 안에 보이게 한다
-    const cx = s ? Math.max(135, Math.min(W / 2, s.cx)) : STICK_HOME.x;
-    const cy = s ? Math.max(135, Math.min(H - 135, s.cy)) : STICK_HOME.y;
+  /** 게임 화면 밖의 조작판을 전용 캔버스(CSS 픽셀 좌표)에 그린다 */
+  controls(g: C, input: Input, layout: TouchLayout) {
+    const s = input.stick, { stick: c, jump: j, pause: p } = layout;
     let kx = s ? s.x - s.cx : 0, ky = s ? s.y - s.cy : 0;
     const d = Math.hypot(kx, ky);
-    if (d > 110) { kx *= 110 / d; ky *= 110 / d; }
+    if (d > STICK_R) { kx *= STICK_R / d; ky *= STICK_R / d; }
+    const k = (c.r * 0.62) / STICK_R;
     const ring = (x: number, y: number, r: number, fill: string) => {
       D.ell(g, x, y, r, r, fill);
       g.strokeStyle = 'rgba(255,255,255,.4)';
-      g.lineWidth = 4;
+      g.lineWidth = 2;
       g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.stroke();
     };
-    ring(cx, cy, 130, 'rgba(12,14,44,.3)');
-    g.fillStyle = 'rgba(255,255,255,.45)';
-    g.font = `800 30px ${FONT}`;
+    ring(c.x, c.y, c.r, 'rgba(255,255,255,.07)');
+    g.fillStyle = 'rgba(255,255,255,.5)';
+    g.font = `800 ${Math.round(c.r * 0.22)}px ${FONT}`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillText('▲', cx, cy - 92); g.fillText('▼', cx, cy + 92); g.fillText('◀', cx - 92, cy); g.fillText('▶', cx + 92, cy);
-    ring(cx + kx, cy + ky, 54, s ? 'rgba(255,212,120,.6)' : 'rgba(255,255,255,.2)');
-    const j = JUMP_BTN;
-    ring(j.x, j.y, j.r, input.jumpTouch !== null ? 'rgba(255,212,120,.6)' : 'rgba(255,255,255,.14)');
-    g.fillStyle = 'rgba(255,255,255,.85)';
-    g.font = `900 40px ${FONT}`;
+    const a = c.r * 0.76;
+    g.fillText('▲', c.x, c.y - a); g.fillText('▼', c.x, c.y + a); g.fillText('◀', c.x - a, c.y); g.fillText('▶', c.x + a, c.y);
+    ring(c.x + kx * k, c.y + ky * k, c.r * 0.4, s ? 'rgba(255,212,120,.7)' : 'rgba(255,255,255,.22)');
+    ring(j.x, j.y, j.r, input.jumpTouch !== null ? 'rgba(255,212,120,.7)' : 'rgba(255,255,255,.14)');
+    g.fillStyle = 'rgba(255,255,255,.9)';
+    g.font = `900 ${Math.round(j.r * 0.36)}px ${FONT}`;
     g.fillText('점프', j.x, j.y);
-    const p = PAUSE_BTN;
-    ring(p.x, p.y, p.r, 'rgba(12,14,44,.62)');
-    D.rr(g, p.x - 14, p.y - 16, 9, 32, 3, '#fff');
-    D.rr(g, p.x + 5, p.y - 16, 9, 32, 3, '#fff');
+    ring(p.x, p.y, p.r, 'rgba(255,255,255,.1)');
+    D.rr(g, p.x - 8, p.y - 9, 5, 18, 2, '#fff');
+    D.rr(g, p.x + 3, p.y - 9, 5, 18, 2, '#fff');
   }
 
   hud(w: World, run: Run, hi: number, t: number, timeAttack?: number) {

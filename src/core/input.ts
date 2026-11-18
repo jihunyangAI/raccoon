@@ -1,4 +1,5 @@
 import { H, W } from './const';
+import type { TouchLayout } from './layout';
 import type { KeyMap } from './save';
 
 export type Action = 'left' | 'right' | 'up' | 'down' | 'jump' | 'pause' | 'ok' | 'back';
@@ -9,10 +10,7 @@ const FIXED: Record<string, Action[]> = {
 const ALT: Record<string, Action> = { KeyA: 'left', KeyD: 'right', KeyW: 'up', KeyS: 'down', KeyZ: 'jump' };
 
 export const RESERVED = Object.keys(FIXED);
-export const PAUSE_BTN = { x: 1400, y: 66, r: 44 };
-export const STICK_HOME = { x: 240, y: 830 };
-export const JUMP_BTN = { x: 1680, y: 840, r: 105 };
-const STICK_R = 110;
+export const STICK_R = 110;
 
 export function keyName(code: string) {
   const arrows: Record<string, string> = { ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓' };
@@ -29,6 +27,8 @@ export class Input {
   capture?: (code: string) => void;
   touchMode = false;
   playing = false;
+  /** 터치 플레이 중의 조작판 배치 */
+  layout?: TouchLayout;
   keyLabels: Record<'left' | 'right' | 'up' | 'down' | 'jump', string> = { left: '', right: '', up: '', down: '', jump: '' };
   stick: { id: number; cx: number; cy: number; x: number; y: number } | null = null;
   jumpTouch: number | null = null;
@@ -88,19 +88,27 @@ export class Input {
     this.mouse.y = p.y;
   }
 
+  /** 스틱 좌표: 조작판 고리 반지름이 STICK_R이 되도록 맞춰 화면 크기와 무관하게 같은 감도를 낸다 */
+  private stickPoint(t: Touch) {
+    const k = STICK_R / (this.layout?.stick.r ?? 50);
+    return { x: t.clientX * k, y: t.clientY * k };
+  }
+
   private touchStart(e: TouchEvent) {
     e.preventDefault();
     this.touchMode = true;
     this.onFirst?.();
     for (const t of Array.from(e.changedTouches)) {
-      const p = this.logical(t.clientX, t.clientY);
+      const pause = this.layout?.pause;
       if (!this.playing) {
+        const p = this.logical(t.clientX, t.clientY);
         this.mouse.x = p.x; this.mouse.y = p.y;
         this.mouse.moved = true; this.mouse.click = true;
-      } else if (Math.hypot(p.x - PAUSE_BTN.x, p.y - PAUSE_BTN.y) < PAUSE_BTN.r + 36) {
+      } else if (pause && Math.hypot(t.clientX - pause.x, t.clientY - pause.y) < pause.r + 14) {
         this.pressed.add('pause');
-      } else if (p.x < W / 2) {
+      } else if (t.clientX < innerWidth / 2) {
         // 왼손은 닿은 자리가 스틱 중심이 된다
+        const p = this.stickPoint(t);
         if (!this.stick) this.stick = { id: t.identifier, cx: p.x, cy: p.y, x: p.x, y: p.y };
       } else if (this.jumpTouch === null) {
         this.jumpTouch = t.identifier;
@@ -115,7 +123,7 @@ export class Input {
     if (!s) return;
     for (const t of Array.from(e.changedTouches)) {
       if (t.identifier !== s.id) continue;
-      const p = this.logical(t.clientX, t.clientY);
+      const p = this.stickPoint(t);
       s.x = p.x; s.y = p.y;
       // 손가락이 멀어지면 중심도 따라와 방향 전환이 빨라진다
       const dx = s.x - s.cx, dy = s.y - s.cy, d = Math.hypot(dx, dy);
